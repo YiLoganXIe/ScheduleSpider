@@ -4,12 +4,13 @@ from lxml import etree
 import time
 import re
 import os
+import csv
 
 
 def DataOrganizer(coursedata):
     coursesessions = []
     while(len(coursedata) > 8):
-        if(coursedata[0]=='@' or coursedata[7][0]=="*"):
+        if(coursedata[0]=='@' or coursedata[8][0]=="*"):
             coursesessions.append(coursedata[0:9])
             coursedata = coursedata[9:]
 
@@ -32,15 +33,50 @@ def CreatePath():
         exit(0)
     return Dpath
 
+def write_dicts2csv(dicts,csv_file_path):
+    with open(csv_file_path,'wb+') as csv_file:
+        headers = dicts[0].keys()
+        writer = csv.DictWriter(csv_file,fieldnames = headers)
+        writer.writeheader()
+        writer.writerows(dicts)
+
+def WriteInCSV(subjectPath, coursesessions, SubjectName, fileCounter):
+    dicts = []
+    for coursesession in coursesessions:
+        time = coursesession[1].split()
+        title = coursesession[3].split()
+        ct = 1
+        coursetitle = ''
+        while(ct < len(title)):
+            coursetitle += " " + title[ct]
+            ct+=1
+        if(len(time)< 7):
+            dic = {"CRN": coursesession[0],
+                   "Time": "TBA",
+                   "Day": "TBA",
+                   "Course": time[-2] + time[-1],
+                   "Location": coursesession[2],
+                   "Title": coursetitle
+                   }
+        else:
+            dic = {"CRN": coursesession[0],
+                   "Time": time[0]+time[1]+time[2]+time[3][:2],
+                   "Day": time[4],
+                   "Course": time[-2]+time[-1],
+                   "Location": coursesession[2],
+                   "Title": coursetitle
+                   }
+        dicts.append(dic)
+    write_dicts2csv(dicts, subjectPath + SubjectName + '.csv')
+
+
+
 DataPath = CreatePath()
 # Open the web page
 browser = webdriver.Chrome()
 browser.get('http://classes.ucdavis.edu/')
 
 # TODO: Change Term
-#terms = [{"Winter Quarter 2020":202001, "Fall Quarter 2019":201910}]
-#term_select=browser.find_element_by_name("termCode")
-#term_select.send_keys(202001)
 
 # Locate the select tag named subjects  ---- iterate all the subject to get all the course
 select = browser.find_element_by_name('subject')
@@ -67,7 +103,7 @@ while(index <= len(subject)):
     Select(select).select_by_index(index)
     submit = browser.find_element_by_name('search')
     submit.click()
-    print("Crawling "+subject[index-1]+"...\n")
+    print("Crawling "+subject[index-1]+"...")
     time.sleep(5)
 
     # An infinite while loop to wait everything on the page loaded
@@ -88,15 +124,14 @@ while(index <= len(subject)):
         else:
             break
     coursesessions = DataOrganizer(course)
-    subjectpath = DataPath + '/' + subject[index-1]
-    os.makedirs(subjectpath)
+    subjectpath = DataPath + '/'
     fileCounter = 0
-    for coursesession in coursesessions:
-        sessionfile = open(subjectpath+'/'+str(fileCounter) + '.txt', "w")
-        for info in coursesession:
-            sessionfile.write(info+'\n')
-        sessionfile.close()
-        fileCounter+=1
+    try:
+        WriteInCSV(subjectpath, coursesessions, subject[index-1], fileCounter)
+        print("Finish!")
+    except:
+        print("No result.")
+    fileCounter+=1
     # choose next option
     index+=1
 
